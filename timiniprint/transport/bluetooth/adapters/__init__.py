@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Optional
 
 from ..constants import IS_LINUX, IS_MACOS, IS_WINDOWS
@@ -33,10 +34,16 @@ def _get_ble_adapter() -> Optional[_BleBluetoothAdapter]:
     global _BLE_ADAPTER
     if _BLE_ADAPTER is None:
         if IS_LINUX:
-            _BLE_ADAPTER = _FallbackAdapter(
-                primary=_LinuxAttAdapter(),
-                fallback=_BleakBleAdapter(),
-            )
+            mode = os.environ.get("TIMINIPRINT_BLE_BACKEND", "auto").strip().lower()
+            if mode in {"bleak", "bluez", "bluez-dbus"}:
+                _BLE_ADAPTER = _BleakBleAdapter()
+            elif mode in {"linux-att", "att", "direct-att"}:
+                _BLE_ADAPTER = _LinuxAttAdapter()
+            else:
+                _BLE_ADAPTER = _FallbackAdapter(
+                    primary=_LinuxAttAdapter(),
+                    fallback=_BleakBleAdapter(),
+                )
         elif IS_WINDOWS or IS_MACOS:
             _BLE_ADAPTER = _BleakBleAdapter()
         else:
