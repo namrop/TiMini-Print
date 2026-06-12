@@ -507,6 +507,27 @@ class BleakTransportSessionTests(unittest.TestCase):
 
         self.assertEqual([len(call[1]) for call in client.calls], [239, 239, 22])
 
+    def test_v5g_standard_send_ignores_stale_twenty_byte_report_after_mtu_exchange(self) -> None:
+        session, client = self._make_session(ProtocolFamily.V5G)
+        cmd = _Char("0000ae01-0000-1000-8000-00805f9b34fb", ["write-without-response"])
+        cmd.max_write_without_response_size = 20
+        session.bindings.write_char = cmd
+        session.bindings.write_selection_strategy = "preferred_uuid"
+        session.bindings.write_response_preference = False
+        session.bindings.write_char_uuid = cmd.uuid
+
+        async def run() -> None:
+            await session.send(
+                client,
+                b"X" * 500,
+                mtu_size=512,
+                timeout=0.2,
+            )
+
+        asyncio.run(run())
+
+        self.assertEqual([len(call[1]) for call in client.calls], [448, 52])
+
     def test_v5g_standard_send_keeps_twenty_byte_fallback_without_reported_mtu(self) -> None:
         session, client = self._make_session(ProtocolFamily.V5G)
         cmd = _Char("0000ae01-0000-1000-8000-00805f9b34fb", ["write-without-response"])

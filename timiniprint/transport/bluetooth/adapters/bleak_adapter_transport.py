@@ -673,7 +673,16 @@ class _BleakTransportSession:
         except Exception:
             max_without_response = None
         if isinstance(max_without_response, int) and max_without_response > 0:
-            payload = min(max_without_response, 512)
+            # BlueZ/Bleak can expose the pre-MTU default 20-byte
+            # write-without-response limit even after the ATT MTU exchange has
+            # negotiated a much larger payload.  Treat that exact default as
+            # stale when the caller supplied a larger negotiated fallback;
+            # otherwise V5G jobs get split into thousands of 15-byte writes and
+            # the printer link times out mid-stream.  Smaller explicit limits
+            # are still respected for transports/tests that genuinely need
+            # them.
+            if not (max_without_response == 20 and fallback > max_without_response):
+                payload = min(max_without_response, 512)
         if reserve > 0:
             payload -= reserve
         return max(1, payload)
