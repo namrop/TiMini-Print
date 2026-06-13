@@ -168,6 +168,15 @@ class DevicesModelsTests(unittest.TestCase):
         self.assertEqual(p4.profile.paper_size, 1600)
         self.assertEqual(p4.profile.print_size, 1728)
 
+    def test_gt02_v5g_prefers_coreprint_spp_and_row_rle(self) -> None:
+        resolved = self.catalog.detect_device("Mini Printer-1125", "25:11:15:00:46:5C")
+
+        self.assertIsNotNone(resolved)
+        self.assertEqual(resolved.profile_key, "gt02_v5g")
+        self.assertTrue(resolved.profile.use_spp)
+        self.assertEqual(resolved.protocol_family, ProtocolFamily.V5G)
+        self.assertEqual(resolved.image_pipeline.encoding, ImageEncoding.V5G_COREPRINT_RLE)
+
     def test_old_small_bucket_uses_v5g_and_mac59_switches_family_only(self) -> None:
         normal = self.catalog.detect_device("MX05-ABCD", "AA:BB:CC:DD:EE:58")
         mac59 = self.catalog.detect_device("MX05-ABCD", "AA:BB:CC:DD:EE:59")

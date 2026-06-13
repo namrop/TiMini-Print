@@ -4581,7 +4581,7 @@
         "gray4",
         "gray8"
       ],
-      "encoding": "v5g_dot"
+      "encoding": "v5g_coreprint_rle"
     },
     "stream": {
       "chunk_size": 180,

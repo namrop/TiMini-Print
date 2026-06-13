@@ -75,6 +75,46 @@ def _dot_frames(request: PrintJobRequest) -> bytes:
     return bytes(job)
 
 
+def _append_coreprint_run(encoded: bytearray, pixel: int, run_length: int) -> None:
+    value_bit = 0x80 if pixel else 0x00
+    while run_length > 127:
+        encoded.append(value_bit | 0x7F)
+        run_length -= 127
+    if run_length > 0:
+        encoded.append(value_bit | run_length)
+
+
+def _coreprint_rle_row(line: list[int]) -> bytes:
+    encoded = bytearray()
+    current = line[0]
+    run_length = 0
+    for pixel in line:
+        if pixel == current:
+            run_length += 1
+            continue
+        _append_coreprint_run(encoded, current, run_length)
+        current = pixel
+        run_length = 1
+    _append_coreprint_run(encoded, current, run_length)
+    return bytes(encoded)
+
+
+def _coreprint_rle_frames(request: PrintJobRequest) -> bytes:
+    raster = request.require_raster(PixelFormat.BW1)
+    if raster.width % 8 != 0:
+        raise ValueError("V5G CorePrint row RLE jobs require width divisible by 8")
+    job = bytearray()
+    for row in range(raster.height):
+        line = list(raster.pixels[row * raster.width : (row + 1) * raster.width])
+        raw = pack_line(line, lsb_first=True)
+        compressed = _coreprint_rle_row(line)
+        if len(compressed) > len(raw):
+            job += make_packet(0xA2, raw, request.protocol_family)
+        else:
+            job += make_packet(0xBF, compressed, request.protocol_family)
+    return bytes(job)
+
+
 def _gray_band_payload(raw_block: bytes) -> bytes:
     compressed = compress_lzo1x_1(raw_block)
     return (
@@ -111,6 +151,9 @@ def build_job(request: PrintJobRequest) -> bytes:
 
     if request.image_pipeline.encoding == ImageEncoding.V5G_GRAY:
         job += _gray_frames(request)
+    elif request.image_pipeline.encoding == ImageEncoding.V5G_COREPRINT_RLE:
+        job += _coreprint_rle_frames(request)
+        job += _feed_packet(request.speed, request.protocol_family)
     else:
         job += _dot_frames(request)
         job += _feed_packet(request.speed, request.protocol_family)
@@ -140,6 +183,7 @@ BEHAVIOR = ProtocolBehavior(
     ),
     image_encoding_support={
         ImageEncoding.V5G_DOT: (PixelFormat.BW1,),
+        ImageEncoding.V5G_COREPRINT_RLE: (PixelFormat.BW1,),
         ImageEncoding.V5G_GRAY: (PixelFormat.GRAY4, PixelFormat.GRAY8),
     },
     job_builder=build_job,

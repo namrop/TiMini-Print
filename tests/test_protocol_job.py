@@ -88,6 +88,10 @@ class ProtocolJobTests(unittest.TestCase):
             ),
             encoding=cls.types.ImageEncoding.V5G_DOT,
         )
+        cls.v5g_coreprint_rle = cls.types.ImagePipelineConfig(
+            formats=(cls.raster.PixelFormat.BW1,),
+            encoding=cls.types.ImageEncoding.V5G_COREPRINT_RLE,
+        )
         cls.v5g_gray = cls.types.ImagePipelineConfig(
             formats=(
                 cls.raster.PixelFormat.GRAY4,
@@ -1287,6 +1291,60 @@ class ProtocolJobTests(unittest.TestCase):
             2,
         )
         self.assertTrue(data.endswith(self.commands.make_packet(0xA3, bytes([0x00]), ProtocolFamily.V5G)))
+
+    def test_build_v5g_coreprint_rle_uses_compressed_row_packet(self) -> None:
+        data = self.builders._build_job(
+            pixels=[1] * 256,
+            width=256,
+            is_text=False,
+            speed=30,
+            energy=15000,
+            density=None,
+            blackening=3,
+            lsb_first=True,
+            protocol_family=ProtocolFamily.V5G,
+            feed_padding=12,
+            dev_dpi=203,
+            image_pipeline=self.v5g_coreprint_rle,
+        )
+
+        self.assertIn(
+            self.commands.make_packet(0xBF, bytes([0xFF, 0xFF, 0x82]), ProtocolFamily.V5G),
+            data,
+        )
+        self.assertNotIn(
+            self.commands.make_packet(0xA2, bytes([0xFF]) * 32, ProtocolFamily.V5G),
+            data,
+        )
+
+    def test_build_v5g_coreprint_rle_falls_back_to_raw_when_row_expands(self) -> None:
+        data = self.builders._build_job(
+            pixels=[1, 0, 1, 0, 1, 0, 1, 0],
+            width=8,
+            is_text=False,
+            speed=30,
+            energy=15000,
+            density=None,
+            blackening=3,
+            lsb_first=True,
+            protocol_family=ProtocolFamily.V5G,
+            feed_padding=12,
+            dev_dpi=203,
+            image_pipeline=self.v5g_coreprint_rle,
+        )
+
+        self.assertIn(
+            self.commands.make_packet(0xA2, bytes([0x55]), ProtocolFamily.V5G),
+            data,
+        )
+        self.assertNotIn(
+            self.commands.make_packet(
+                0xBF,
+                bytes([0x81, 0x01, 0x81, 0x01, 0x81, 0x01, 0x81, 0x01]),
+                ProtocolFamily.V5G,
+            ),
+            data,
+        )
 
     def test_build_v5g_gray_job_uses_density_and_compressed_frame(self) -> None:
         raster_set = self._raster_set(

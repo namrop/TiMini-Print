@@ -13,6 +13,7 @@ class ImageEncoding(str, Enum):
     LUCK_NORMAL_COMPRESSED = "luck_normal_compressed"
     LUCK_NORMAL_GRAY = "luck_normal_gray"
     V5G_DOT = "v5g_dot"
+    V5G_COREPRINT_RLE = "v5g_coreprint_rle"
     V5G_GRAY = "v5g_gray"
     V5X_DOT = "v5x_dot"
     V5X_GRAY = "v5x_gray"
