@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Callable
 
@@ -138,6 +139,9 @@ class BleakBluetoothConnector:
                     protocol_family=device.protocol_family,
                 ),
             )
+        forced_transport = _forced_bluetooth_transport()
+        if forced_transport is not None:
+            attempts = [item for item in attempts if item.transport is forced_transport]
         return attempts
 
     @staticmethod
@@ -154,6 +158,19 @@ class BleakBluetoothConnector:
             transport=transport,
             protocol_family=device.protocol_family,
         )
+
+
+def _forced_bluetooth_transport() -> DeviceTransport | None:
+    value = os.environ.get("TIMINIPRINT_BLUETOOTH_TRANSPORT", "").strip().lower()
+    if value in {"", "auto"}:
+        return None
+    if value in {"classic", "spp", "rfcomm"}:
+        return DeviceTransport.CLASSIC
+    if value in {"ble", "gatt"}:
+        return DeviceTransport.BLE
+    raise RuntimeError(
+        "TIMINIPRINT_BLUETOOTH_TRANSPORT must be one of: auto, classic, ble"
+    )
 
 
 def _looks_like_bluetooth_mac(address: str) -> bool:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -160,6 +161,22 @@ class BluetoothDiscoveryAndConnectorTests(unittest.TestCase):
         self.assertEqual([item.address for item in attempts], ["25:11:15:00:46:5C", "25:11:15:00:46:5C"])
         self.assertEqual(attempts[0].name, "Mini Printer-1125")
         self.assertIs(attempts[0].paired, False)
+
+    def test_connector_can_force_classic_only_attempts_for_spp_validation(self) -> None:
+        classic = DeviceInfo(name="Mini Printer-1125", address="25:11:15:00:46:5C", transport=DeviceTransport.CLASSIC)
+        ble = DeviceInfo(name="Mini Printer-1125", address="25:11:15:00:46:5C", transport=DeviceTransport.BLE)
+        device = self.discovery.devices_from_scan([classic, ble])[0]
+        backend = MagicMock()
+        backend.connect_attempts = AsyncMock()
+
+        with patch.dict(os.environ, {"TIMINIPRINT_BLUETOOTH_TRANSPORT": "classic"}), patch(
+            "timiniprint.transport.bluetooth.connector.SppBackend",
+            return_value=backend,
+        ):
+            _run(BleakBluetoothConnector().connect(device))
+
+        attempts = backend.connect_attempts.await_args.args[0]
+        self.assertEqual([item.transport for item in attempts], [DeviceTransport.CLASSIC])
 
 
 def _run(coro):
