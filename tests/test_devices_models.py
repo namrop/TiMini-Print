@@ -530,6 +530,9 @@ class DevicesModelsTests(unittest.TestCase):
         self.assertIsNotNone(bq02.density)
         self.assertEqual(bq02.density.text.high, 180)
 
+        self.assertTrue(gt02.use_spp)
+        self.assertEqual(gt02.stream.chunk_size, 180)
+        self.assertEqual(gt02.stream.delay_ms, 4)
         self.assertIsNotNone(gt02.density)
         self.assertEqual(gt02.density.image.middle, 110)
         self.assertEqual(gt02.density.text.high, 150)

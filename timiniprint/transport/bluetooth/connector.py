@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 
 from ... import reporting
@@ -8,6 +9,8 @@ from ...devices.device import BluetoothEndpointTransport
 from ...protocol import ProtocolJob
 from .backend import SppBackend
 from .types import DeviceInfo, DeviceTransport
+
+_MAC_ADDRESS_RE = re.compile(r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 
 
 class BleakBluetoothConnection:
@@ -106,16 +109,36 @@ class BleakBluetoothConnector:
         target = device.transport_target
         if not isinstance(target, BluetoothTarget):
             raise RuntimeError("BleakBluetoothConnector requires a PrinterDevice with BluetoothTarget")
-        attempts = [
-            self._to_device_info(endpoint, device)
-            for endpoint in target.ordered_endpoints(prefer_spp=device.profile.use_spp)
-        ]
+        attempts = self._connection_attempts(target, device)
         backend = SppBackend(reporter=self._reporter)
         await backend.connect_attempts(
             attempts,
             pairing_hint=target.paired is False,
         )
         return BleakBluetoothConnection(backend, device, self._reporter)
+
+    def _connection_attempts(self, target: BluetoothTarget, device: PrinterDevice) -> list[DeviceInfo]:
+        attempts = [
+            self._to_device_info(endpoint, device)
+            for endpoint in target.ordered_endpoints(prefer_spp=device.profile.use_spp)
+        ]
+        if (
+            device.profile.use_spp
+            and target.classic_endpoint is None
+            and target.ble_endpoint is not None
+            and _looks_like_bluetooth_mac(target.ble_endpoint.address)
+        ):
+            attempts.insert(
+                0,
+                DeviceInfo(
+                    name=target.ble_endpoint.name,
+                    address=target.ble_endpoint.address,
+                    paired=target.ble_endpoint.paired,
+                    transport=DeviceTransport.CLASSIC,
+                    protocol_family=device.protocol_family,
+                ),
+            )
+        return attempts
 
     @staticmethod
     def _to_device_info(endpoint, device: PrinterDevice) -> DeviceInfo:
@@ -131,3 +154,7 @@ class BleakBluetoothConnector:
             transport=transport,
             protocol_family=device.protocol_family,
         )
+
+
+def _looks_like_bluetooth_mac(address: str) -> bool:
+    return bool(_MAC_ADDRESS_RE.match((address or "").strip()))

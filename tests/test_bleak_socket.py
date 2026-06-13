@@ -55,6 +55,17 @@ class _Client:
         callback(char_uuid, bytearray(payload))
 
 
+class _MtuClient(_Client):
+    def __init__(self, services):
+        super().__init__(services)
+        self.mtu_size = 23
+        self.acquire_called = False
+
+    async def _acquire_mtu(self):
+        self.acquire_called = True
+        self.mtu_size = 247
+
+
 class BleakSocketTests(unittest.TestCase):
     def test_find_write_characteristic_preferred(self) -> None:
         s = _BleakSocket()
@@ -90,6 +101,17 @@ class BleakSocketTests(unittest.TestCase):
         s = _BleakSocket()
 
         self.assertEqual(s._mtu_size, 20)
+
+    def test_acquire_mtu_refreshes_bluez_write_payload_size(self) -> None:
+        s = _BleakSocket()
+        client = _MtuClient([])
+        s._client = client
+
+        asyncio.run(s._acquire_mtu_if_supported())
+        s._refresh_mtu_from_client()
+
+        self.assertTrue(client.acquire_called)
+        self.assertEqual(s._mtu_size, 244)
 
     def test_send_async_v5x_routes_commands_and_bulk_data(self) -> None:
         s = _BleakSocket(protocol_family=ProtocolFamily.V5X)

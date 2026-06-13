@@ -141,6 +141,26 @@ class BluetoothDiscoveryAndConnectorTests(unittest.TestCase):
         attempts = backend.connect_attempts.await_args.args[0]
         self.assertEqual([item.transport for item in attempts], [DeviceTransport.BLE, DeviceTransport.CLASSIC])
 
+    def test_connector_synthesizes_classic_attempt_for_spp_profile_with_only_ble_mac(self) -> None:
+        ble = DeviceInfo(
+            name="Mini Printer-1125",
+            address="25:11:15:00:46:5C",
+            paired=False,
+            transport=DeviceTransport.BLE,
+        )
+        device = self.discovery.devices_from_scan([ble])[0]
+        backend = MagicMock()
+        backend.connect_attempts = AsyncMock()
+
+        with patch("timiniprint.transport.bluetooth.connector.SppBackend", return_value=backend):
+            _run(BleakBluetoothConnector().connect(device))
+
+        attempts = backend.connect_attempts.await_args.args[0]
+        self.assertEqual([item.transport for item in attempts], [DeviceTransport.CLASSIC, DeviceTransport.BLE])
+        self.assertEqual([item.address for item in attempts], ["25:11:15:00:46:5C", "25:11:15:00:46:5C"])
+        self.assertEqual(attempts[0].name, "Mini Printer-1125")
+        self.assertIs(attempts[0].paired, False)
+
 
 def _run(coro):
     return asyncio.run(coro)

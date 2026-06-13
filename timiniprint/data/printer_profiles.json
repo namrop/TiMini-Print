@@ -4570,7 +4570,7 @@
     "dev_dpi": 200,
     "can_change_mtu": true,
     "has_id": false,
-    "use_spp": false,
+    "use_spp": true,
     "can_print_label": false,
     "label_value": "0",
     "back_paper_num": 0,
@@ -4584,8 +4584,8 @@
       "encoding": "v5g_dot"
     },
     "stream": {
-      "chunk_size": 63,
-      "delay_ms": 6
+      "chunk_size": 180,
+      "delay_ms": 4
     },
     "post_print_feed_count": 4,
     "tuning": {

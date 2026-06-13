@@ -119,9 +119,8 @@ class _BleakSocket:
             detail = str(exc).strip() or repr(exc) or exc.__class__.__name__
             raise RuntimeError(f"Failed to connect to BLE device {address}: {detail}") from exc
 
-        if hasattr(self._client, "mtu_size") and self._client.mtu_size:
-            negotiated_mtu = self._client.mtu_size - 3
-            self._mtu_size = min(negotiated_mtu, 512)
+        await self._acquire_mtu_if_supported()
+        self._refresh_mtu_from_client()
 
         if self._pairing_hint:
             await self._pair_if_supported()
@@ -173,6 +172,28 @@ class _BleakSocket:
         if not self._client or not self._connected:
             return None
         return self._write_resolver.resolve(self._client.services)
+
+    async def _acquire_mtu_if_supported(self) -> None:
+        """Ask Bleak/BlueZ to populate a real write-without-response MTU when possible."""
+        if not self._client:
+            return
+        acquire_mtu = getattr(self._client, "_acquire_mtu", None)
+        if not callable(acquire_mtu):
+            return
+        try:
+            await acquire_mtu()
+        except Exception as exc:
+            self._reporter.debug(short="BLE", detail=f"MTU acquire skipped: {exc}")
+
+    def _refresh_mtu_from_client(self) -> None:
+        if not self._client:
+            return
+        mtu_size = getattr(self._client, "mtu_size", None)
+        if not mtu_size:
+            return
+        negotiated_mtu = int(mtu_size) - 3
+        if negotiated_mtu > 0:
+            self._mtu_size = min(negotiated_mtu, 512)
 
     def send(self, data: bytes) -> int:
         return self.send_payload(data)
